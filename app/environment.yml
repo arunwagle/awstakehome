@@ -1,0 +1,11 @@
+name: process_data_dep
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - boto3
+  - numpy
+  - cftime=1.4.1
+  - iris
+  - pyproj
+  - numpy
