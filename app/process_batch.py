@@ -31,6 +31,7 @@ import iris
 
 # Global Params
 # Public bucket from MET Office
+input_bucket = 'mogreps-uk-realtime'
 # Bucket storing csv files for further processing in the pipeline
 csv_output_bucket = 'mogreps-uk-csv-output'
 s3 = boto3.client('s3')
@@ -41,15 +42,17 @@ def lambda_handler(event, context):
     #print("Received event: " + json.dumps(event, indent=2))
 
     # Get the object from the event and show its content type
-    bucket = event['Records'][0]['s3']['bucket']['name']
-    key = urllib.parse.unquote_plus(
-        event['Records'][0]['s3']['object']['key'], encoding='utf-8')
     try:
         # download the file to the local tmp folder
-        tmp_file_name = os.path.join("/tmp", key)
-        download_locally(bucket, key, tmp_file_name)
+        download_files(s3, input_bucket, subfolder='')
 
-        listofcubes = iris.load(tmp_file_name)
+        dir = "/tmp"
+        file_list = [os.path.abspath(os.path.join(
+            dir, p)) for p in os.listdir(dir) if p.endswith(('nc'))]
+
+        print("file_list::{}".format(file_list))
+        # Load the list of cubes
+        listofcubes = iris.load(file_list)
         # Print the cube stats
         for cube in listofcubes:
             print_cube(cube, print_cube=False, print_stats=True)
@@ -60,7 +63,7 @@ def lambda_handler(event, context):
         )
 
         # Create multiple threads and run in background as futures object to process multiple cubes.
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             # Start the load operations and mark each future with its URL
             future_output = {executor.submit(
                 process_cube, cube, "celsius", 10, 200): cube for cube in two_dim_subset_cubes}
@@ -68,18 +71,17 @@ def lambda_handler(event, context):
                 cube = future_output[future]
                 try:
                     data = future.result()
-                    print("data:{}".format(data))
-                    os.remove(tmp_file_name)
+                    print("Result from Processing::{}".format(data))
                 except Exception as exc:
                     print('{} generated an exception: {}'.format(cube, exc))
                     raise exc
                 else:
                     print('{} cube is {} data'.format(cube, data))
 
-        return "File::{} is being processed in the background".format(key)
+        return "Following Files::{} are being processed in the background".format(file_list)
     except Exception as e:
         print(e)
-        print('Error getting object {} from bucket {}. Make sure they exist and your bucket is in the same region as this function.'.format(key, bucket))
+        # print('Error getting object {} from bucket {}. Make sure they exist and your bucket is in the same region as this function.'.format(key, bucket))
         raise e
 
 
@@ -122,10 +124,15 @@ def print_cube(cube, print_cube=True, print_stats=True):
         print("####END####")
 
 
-def download_locally(bucket_name, key, tmp_file_name):    
-    s3.download_file(bucket_name, key, tmp_file_name)
+def download_locally(bucket_name, key, tmp_file_name):
+    url = "https://s3.eu-west-2.amazonaws.com/" + bucket_name + "/" + key
+    # save in this directory with same name
+    urllib.request.urlretrieve(url, tmp_file_name)
 
-def download_files(conn, bucket, subfolder='', ):
+# Connect to S3 to get 200 files and process them
+
+
+def download_files(conn, bucket, subfolder=''):
     contents = conn.list_objects(
         Bucket=bucket, Prefix=subfolder, MaxKeys=10)['Contents']
     for f in contents:
@@ -136,6 +143,8 @@ def download_files(conn, bucket, subfolder='', ):
         s3.download_file(bucket, key, tmp_file_name)
 
 # upload file to S3
+
+
 def upload_file(conn, file_name, bucket, upload_key):
     conn.upload_file(Filename=file_name, Bucket=bucket, Key=upload_key)
 
@@ -245,3 +254,10 @@ def process_cube(cube_orig, unit, coord_zero_slice_len=0, coord_one_slice_len=0)
     os.remove(csv_file_name)
 
     return "SUCCESS"
+
+# if __name__ == "__main__":
+#     print ("main")
+#     dir = "/Users/arun.wagle@ibm.com/Personal/Projects/Projects/BizAI/bizai-samples-git/build-tools/docker_config/faas/aws/conda"
+#     x = [os.path.abspath(os.path.join(dir, p)) for p in os.listdir(dir) if p.endswith(('py'))]
+
+#     print (x)

@@ -3,9 +3,12 @@ channels:
   - conda-forge
 dependencies:
   - python=3.8
-  - boto3
+  -  pip
   - numpy
   - cftime=1.4.1
   - iris
   - pyproj
   - numpy
+  - pip:
+    - awslambdaric 
+    - boto3
