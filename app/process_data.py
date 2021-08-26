@@ -240,8 +240,8 @@ def process_cube(cube_orig, unit, coord_zero_slice_len=0, coord_one_slice_len=0)
 
     upload_key = last_column_name + "/" + csv_file_name
 #     upload the proccessed csv files to S3
-    upload_file(s3, csv_file_name, csv_output_bucket, upload_key)
+    upload_file(s3, csv_full_name, csv_output_bucket, upload_key)
 
-    os.remove(csv_file_name)
+    os.remove(csv_full_name)
 
     return "SUCCESS"
